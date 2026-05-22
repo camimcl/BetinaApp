@@ -1,6 +1,6 @@
 # 🏟️ Sports Analysis Assistant
 
-Assistente de análise esportiva com XGBoost + SHAP + StatsBomb + BetsAPI.
+Assistente de análise esportiva com XGBoost + SHAP + StatsBomb + API-Football.
 
 ---
 
@@ -23,7 +23,7 @@ pip install -r requirements.txt
 ### 3. Configure as variáveis de ambiente
 ```bash
 cp .env.example .env
-# Edite .env e coloque seu BETSAPI_TOKEN
+# Edite .env e coloque seu FOOTBALL_API_KEY (grátis em https://dashboard.api-football.com/register)
 ```
 
 ---
@@ -71,7 +71,7 @@ Acesse a documentação interativa em: http://localhost:8000/docs
 | POST | `/predict/foul` | P(cartão) dada uma falta |
 | POST | `/predict/match` | P(resultado) de uma partida |
 | POST | `/simulate` | Cenário "E SE?" |
-| GET | `/live/matches` | Partidas ao vivo (BetsAPI) |
+| GET | `/live/matches` | Partidas ao vivo (API-Football) |
 | GET | `/live/match/{id}` | Detalhes de partida ao vivo |
 
 ---

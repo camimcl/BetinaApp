@@ -54,20 +54,19 @@ export async function getHealth() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LIVE MATCHES (BetsAPI)
+// LIVE MATCHES (API-Football)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Busca partidas ao vivo.
- * @param {number} sportId - 1=Soccer, 18=Basketball, 13=Tennis
  */
-export async function getLiveMatches(sportId = 1) {
-  return request(`/live/matches?sport_id=${sportId}`);
+export async function getLiveMatches() {
+  return request(`/live/matches`);
 }
 
 /**
  * Busca detalhes + odds de uma partida ao vivo.
- * @param {string} eventId - ID do evento BetsAPI
+ * @param {string} eventId - ID do fixture API-Football
  */
 export async function getLiveMatchDetail(eventId) {
   return request(`/live/match/${eventId}`);

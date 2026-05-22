@@ -89,23 +89,26 @@ async def _proactive_check():
         logger.debug(f"Limite diário atingido ({get_daily_sends_count()}/3) — pular.")
         return
 
-    BETSAPI_TOKEN = os.getenv("BETSAPI_TOKEN", "")
-    BETSAPI_BASE = "https://api.betsapi.com/v1"
+    FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "")
+    FOOTBALL_API_BASE = "https://v3.football.api-sports.io"
 
-    if not BETSAPI_TOKEN:
-        logger.debug("BETSAPI_TOKEN não configurado — scheduler não pode buscar jogos.")
+    if not FOOTBALL_API_KEY:
+        logger.debug("FOOTBALL_API_KEY não configurado — scheduler não pode buscar jogos.")
         return
 
     # 1. Busca jogos ao vivo
     try:
         import httpx
+        from src.api.main import _normalize_fixture
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
-                f"{BETSAPI_BASE}/events/inplay",
-                params={"token": BETSAPI_TOKEN, "sport_id": 1}
+                f"{FOOTBALL_API_BASE}/fixtures",
+                params={"live": "all"},
+                headers={"x-apisports-key": FOOTBALL_API_KEY},
             )
         data = resp.json()
-        results = data.get("results", [])
+        raw_fixtures = data.get("response", [])
+        results = [_normalize_fixture(f) for f in raw_fixtures]
     except Exception as e:
         logger.error(f"Scheduler: erro ao buscar jogos ao vivo: {e}")
         return

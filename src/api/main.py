@@ -9,7 +9,7 @@ Rotas:
   POST /predict/foul               → P(cartão) dada uma falta
   POST /predict/match              → P(resultado) dada uma partida
   POST /simulate                   → cenário "E SE?"
-  GET  /live/matches               → partidas ao vivo via BetsAPI
+  GET  /live/matches               → partidas ao vivo via API-Football
   GET  /live/match/{event_id}      → detalhes de partida ao vivo
 
 Uso:
@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -51,8 +51,8 @@ from src.api.gemini_client import chat_with_betina, is_available as gemini_is_av
 from src.api.scheduler import start_proactive_scheduler
 
 
-BETSAPI_TOKEN = os.getenv("BETSAPI_TOKEN", "")
-BETSAPI_BASE  = "https://api.betsapi.com/v1"
+FOOTBALL_API_KEY  = os.getenv("FOOTBALL_API_KEY", "")
+FOOTBALL_API_BASE = "https://v3.football.api-sports.io"
 
 app = FastAPI(
     title="Sports Analysis Assistant API",
@@ -171,7 +171,7 @@ async def health():
     return {
         "status": "ok",
         "models_loaded": bool(os.path.exists("data/models/goal_model.pkl")),
-        "betsapi_configured": bool(BETSAPI_TOKEN),
+        "football_api_configured": bool(FOOTBALL_API_KEY),
     }
 
 
@@ -270,56 +270,80 @@ async def simulate_endpoint(sim: SimulationInput):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ROTAS BetsAPI — DADOS EM TEMPO REAL
+# ROTAS API-Football — DADOS EM TEMPO REAL
 # ══════════════════════════════════════════════════════════════════════════════
 
-async def _betsapi_get(endpoint: str, params: dict = {}) -> dict:
-    """Helper para chamadas à BetsAPI."""
-    if not BETSAPI_TOKEN:
+async def _football_api_get(endpoint: str, params: dict = {}) -> dict:
+    """Helper para chamadas à API-Football (api-sports.io)."""
+    if not FOOTBALL_API_KEY:
         raise HTTPException(
             status_code=503,
-            detail="BETSAPI_TOKEN não configurado. Adicione ao arquivo .env"
+            detail="FOOTBALL_API_KEY não configurado. Adicione ao arquivo .env"
         )
 
-    url = f"{BETSAPI_BASE}/{endpoint}"
-    params = {"token": BETSAPI_TOKEN, **params}
+    url = f"{FOOTBALL_API_BASE}/{endpoint}"
+    headers = {"x-apisports-key": FOOTBALL_API_KEY}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(url, params=params)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(url, params=params, headers=headers)
 
     if resp.status_code != 200:
         raise HTTPException(
             status_code=resp.status_code,
-            detail=f"BetsAPI retornou {resp.status_code}: {resp.text[:200]}"
+            detail=f"API-Football retornou {resp.status_code}: {resp.text[:200]}"
         )
 
     data = resp.json()
-    if data.get("success") != 1:
-        raise HTTPException(status_code=502, detail=f"BetsAPI error: {data}")
+    errors = data.get("errors", {})
+    if errors:
+        raise HTTPException(status_code=502, detail=f"API-Football error: {errors}")
 
     return data
 
 
-@app.get("/live/matches")
-async def get_live_matches(sport_id: int = Query(1, description="1=Soccer, 18=Basketball, 13=Tennis")):
+def _normalize_fixture(f: dict) -> dict:
     """
-    Retorna partidas ao vivo via BetsAPI.
-    sport_id=1 para futebol (padrão).
+    Normaliza um fixture da API-Football para o formato interno
+    compatível com scheduler/telegram (mesmo formato que a BetsAPI usava).
     """
-    data = await _betsapi_get("events/inplay", {"sport_id": sport_id})
-    results = data.get("results", [])
+    goals = f.get("goals", {}) or {}
+    h_goals = goals.get("home") if goals.get("home") is not None else 0
+    a_goals = goals.get("away") if goals.get("away") is not None else 0
 
-    # Formata para o frontend
+    return {
+        "id":     f.get("fixture", {}).get("id"),
+        "home":   {"name": f.get("teams", {}).get("home", {}).get("name", "")},
+        "away":   {"name": f.get("teams", {}).get("away", {}).get("name", "")},
+        "ss":     f"{h_goals}-{a_goals}",
+        "timer":  {"tm": f.get("fixture", {}).get("status", {}).get("elapsed") or 0},
+        "league": {"name": f.get("league", {}).get("name", "")},
+        "time_status": f.get("fixture", {}).get("status", {}).get("short", ""),
+    }
+
+
+@app.get("/live/matches")
+async def get_live_matches():
+    """
+    Retorna partidas de futebol ao vivo via API-Football.
+    """
+    data = await _football_api_get("fixtures", {"live": "all"})
+    results = data.get("response", [])
+
+    # Formata para o frontend (mesmo contrato de antes)
     matches = []
-    for r in results:
+    for f in results:
+        goals = f.get("goals", {}) or {}
+        h_goals = goals.get("home") if goals.get("home") is not None else 0
+        a_goals = goals.get("away") if goals.get("away") is not None else 0
+
         matches.append({
-            "event_id":   r.get("id"),
-            "league":     r.get("league", {}).get("name", ""),
-            "home_team":  r.get("home", {}).get("name", ""),
-            "away_team":  r.get("away", {}).get("name", ""),
-            "score":      r.get("ss", ""),
-            "time":       r.get("timer", {}).get("tm", ""),
-            "status":     r.get("time_status", ""),
+            "event_id":   f.get("fixture", {}).get("id"),
+            "league":     f.get("league", {}).get("name", ""),
+            "home_team":  f.get("teams", {}).get("home", {}).get("name", ""),
+            "away_team":  f.get("teams", {}).get("away", {}).get("name", ""),
+            "score":      f"{h_goals}-{a_goals}",
+            "time":       f.get("fixture", {}).get("status", {}).get("elapsed", ""),
+            "status":     f.get("fixture", {}).get("status", {}).get("short", ""),
         })
 
     return {"total": len(matches), "matches": matches}
@@ -328,33 +352,29 @@ async def get_live_matches(sport_id: int = Query(1, description="1=Soccer, 18=Ba
 @app.get("/live/match/{event_id}")
 async def get_live_match_detail(event_id: str):
     """
-    Retorna detalhes de uma partida ao vivo, incluindo odds.
+    Retorna detalhes de uma partida ao vivo (API-Football).
     Combina com histórico StatsBomb para enriquecer o contexto.
     """
     # Dados da partida ao vivo
-    data = await _betsapi_get("event/view", {"event_id": event_id})
-    event = data.get("results", [{}])[0]
+    data = await _football_api_get("fixtures", {"id": event_id})
+    fixtures = data.get("response", [])
+    event = fixtures[0] if fixtures else {}
 
     # Extrai placar atual
-    score = event.get("ss", "0-0")
-    try:
-        home_score, away_score = map(int, score.split("-"))
-    except Exception:
-        home_score, away_score = 0, 0
-
+    goals = event.get("goals", {}) or {}
+    home_score = goals.get("home") if goals.get("home") is not None else 0
+    away_score = goals.get("away") if goals.get("away") is not None else 0
+    score = f"{home_score}-{away_score}"
     score_diff = home_score - away_score
-
-    # Odds (se disponível)
-    odds_data = await _betsapi_get("event/odds/summary", {"event_id": event_id})
 
     return {
         "event_id":  event_id,
-        "home_team": event.get("home", {}).get("name", ""),
-        "away_team": event.get("away", {}).get("name", ""),
+        "home_team": event.get("teams", {}).get("home", {}).get("name", ""),
+        "away_team": event.get("teams", {}).get("away", {}).get("name", ""),
         "score":     score,
-        "minute":    event.get("timer", {}).get("tm", 0),
+        "minute":    event.get("fixture", {}).get("status", {}).get("elapsed", 0),
         "score_diff": score_diff,
-        "odds":      odds_data.get("results", {}),
+        "odds":      {},
         "tip": (
             "Use /predict/match para analisar probabilidades baseadas em estatísticas históricas. "
             "Combine com os dados ao vivo para contexto completo."

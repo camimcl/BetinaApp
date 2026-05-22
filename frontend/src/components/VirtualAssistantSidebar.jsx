@@ -16,13 +16,13 @@ export default function VirtualAssistantSidebar({ activeView, setActiveView, onS
   // Polling de jogos ao vivo (30s)
   useEffect(() => {
     const cleanup = startPolling(
-      () => getLiveMatches(1),
+      () => getLiveMatches(),
       (data, err) => {
         setLiveLoading(false);
         if (err) { setLiveError(err.message); return; }
         setLiveMatches((data.matches || []).slice(0, 5)); // Mostra até 5
       },
-      30000
+      60000
     );
     return cleanup;
   }, []);

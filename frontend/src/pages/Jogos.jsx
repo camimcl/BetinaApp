@@ -12,9 +12,9 @@ const SPORT_IMAGES = {
 };
 
 const SPORT_TABS = [
-  { id: 1, name: "Futebol", icon: "⚽" },
-  { id: 18, name: "Basquete", icon: "🏀" },
-  { id: 13, name: "Tênis", icon: "🎾" },
+  { id: 1, name: "Futebol", icon: "⚽", enabled: true },
+  { id: 18, name: "Basquete", icon: "🏀", enabled: false },
+  { id: 13, name: "Tênis", icon: "🎾", enabled: false },
 ];
 
 export default function Jogos() {
@@ -35,7 +35,7 @@ export default function Jogos() {
     setError(null);
 
     const cleanup = startPolling(
-      () => getLiveMatches(activeSport),
+      () => getLiveMatches(),
       (data, err) => {
         setLoading(false);
         if (err) {
@@ -45,7 +45,7 @@ export default function Jogos() {
         setMatches(data.matches || []);
         setLastUpdate(new Date());
       },
-      30000
+      60000
     );
 
     return cleanup;
@@ -84,15 +84,21 @@ export default function Jogos() {
         {SPORT_TABS.map(sport => (
           <button
             key={sport.id}
-            onClick={() => setActiveSport(sport.id)}
-            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
-              activeSport === sport.id
-                ? "bg-brand-yellow text-slate-900 shadow-lg shadow-brand-yellow/20"
-                : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
+            onClick={() => sport.enabled && setActiveSport(sport.id)}
+            disabled={!sport.enabled}
+            className={`relative px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              !sport.enabled
+                ? "bg-slate-800/50 text-slate-600 cursor-not-allowed border border-slate-700/50"
+                : activeSport === sport.id
+                  ? "bg-brand-yellow text-slate-900 shadow-lg shadow-brand-yellow/20"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
             }`}
           >
             <span className="mr-1.5">{sport.icon}</span>
             {sport.name}
+            {!sport.enabled && (
+              <span className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-slate-700 text-slate-400 text-[9px] font-bold rounded-full uppercase">Em breve</span>
+            )}
           </button>
         ))}
       </div>

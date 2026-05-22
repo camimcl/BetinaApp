@@ -24,8 +24,8 @@ from loguru import logger
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 PLATFORM_URL       = os.getenv("PLATFORM_URL", "http://localhost:5173")
-BETSAPI_TOKEN      = os.getenv("BETSAPI_TOKEN", "")
-BETSAPI_BASE       = "https://api.betsapi.com/v1"
+FOOTBALL_API_KEY   = os.getenv("FOOTBALL_API_KEY", "")
+FOOTBALL_API_BASE  = "https://v3.football.api-sports.io"
 _TELEGRAM_API      = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 
@@ -130,18 +130,21 @@ async def send_message(chat_id: int, text: str) -> dict:
 # ── Busca de Jogos ───────────────────────────────────────────────────────────
 
 async def _fetch_live_matches() -> List[dict]:
-    """Busca jogos ao vivo via BetsAPI."""
-    if not BETSAPI_TOKEN:
+    """Busca jogos ao vivo via API-Football e normaliza para formato interno."""
+    if not FOOTBALL_API_KEY:
         return []
 
     try:
-        async with httpx.AsyncClient(timeout=12.0) as client:
+        from src.api.main import _normalize_fixture
+        async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
-                f"{BETSAPI_BASE}/events/inplay",
-                params={"token": BETSAPI_TOKEN, "sport_id": 1}
+                f"{FOOTBALL_API_BASE}/fixtures",
+                params={"live": "all"},
+                headers={"x-apisports-key": FOOTBALL_API_KEY},
             )
         data = resp.json()
-        return data.get("results", [])
+        raw_fixtures = data.get("response", [])
+        return [_normalize_fixture(f) for f in raw_fixtures]
     except Exception as e:
         logger.error(f"Erro ao buscar jogos: {e}")
         return []
