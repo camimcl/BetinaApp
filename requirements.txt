@@ -1,38 +1,34 @@
+# ============================================================
+# requirements.txt — IntelliBet (produção)
+# Compatível com Python 3.11 / Render Free Tier
+# ============================================================
+
 # === Core API ===
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
-python-dotenv==1.0.1
-httpx==0.27.0
-pydantic==2.7.1
+fastapi>=0.111.0,<0.120.0
+uvicorn[standard]>=0.29.0,<0.35.0
+python-dotenv>=1.0.1
+httpx>=0.27.0,<0.30.0
+pydantic>=2.7.1,<3.0.0
+python-multipart>=0.0.9
 
 # === Data ===
-statsbombpy==1.17.0
-pandas==3.0.1
-numpy==2.4.3
+# statsbombpy REMOVIDO — usado só no treinamento, não na API
+numpy>=1.26.4,<2.3.0
+pandas>=2.2.0,<3.1.0
 
 # === Machine Learning ===
-xgboost==2.0.3
-scikit-learn==1.4.2
-shap==0.45.1
-imbalanced-learn==0.12.2   # para lidar com classes desbalanceadas (gols são raros)
-
-# === Serialização de modelos ===
-joblib==1.4.2
-
-# === Visualização (notebooks de exploração) ===
-matplotlib==3.8.4
-seaborn==0.13.2
+# scikit-learn 1.5+ não tem o bug do numpy==2.0.0rc1 como build dep
+scikit-learn>=1.5.0,<1.7.0
+xgboost>=2.0.3,<3.0.0
+shap>=0.45.1,<0.50.0
+imbalanced-learn>=0.12.2,<0.14.0
+joblib>=1.4.2,<1.6.0
 
 # === Utilitários ===
-tqdm==4.66.4
-loguru==0.7.2
+loguru>=0.7.2,<0.8.0
 
-# === Telegram Bot (sem dependências extras — usa httpx) ===
-# O httpx já está listado acima
-python-multipart==0.0.9    # necessário para Form() do FastAPI
-
-# === Scheduler (envio proativo WhatsApp) ===
-apscheduler==3.10.4
+# === Scheduler (alertas proativos Telegram) ===
+apscheduler>=3.10.4,<4.0.0
 
 # === IA Conversacional (Gemini) ===
-google-genai>=0.1.0
+google-genai>=1.0.0
