@@ -18,7 +18,7 @@ export default function Navbar() {
           {/* Logo / Brand */}
           <div className="flex-shrink-0 flex items-center">
             <Link to="/" className="text-2xl font-bold text-white tracking-tighter">
-              Betina<span className="text-brand-yellow">App</span>
+              Intelli<span className="text-brand-yellow">Bet</span>
             </Link>
           </div>
 

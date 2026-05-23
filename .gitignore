@@ -164,3 +164,7 @@ log/
 
 # Pastas relacionadas a bots / agentes
 .agents/
+
+# Libera modelos ML (necessários para deploy)
+!data/models/*.pkl
+

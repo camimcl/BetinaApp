@@ -420,7 +420,7 @@ export default function VirtualAssistantSimulation({ selectedMatch }) {
             <div className="bg-gradient-to-br from-brand-yellow/10 to-yellow-500/5 rounded-xl p-5 border border-brand-yellow/20">
               <h3 className="text-brand-yellow font-bold text-sm mb-3 flex items-center gap-2">
                 <Info size={16} />
-                Explicação da Betina
+                Explicação da Elli AI
               </h3>
               <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
                 {result.narrative}

@@ -227,7 +227,7 @@ async def predict_match_endpoint(match: MatchInput):
 @app.post("/chat")
 async def chat_endpoint(payload: ChatInput):
     """
-    Chat conversacional com a Betina I.A. via Gemini.
+    Chat conversacional com a Elli AI via Gemini.
     Mantém histórico multi-turn por session_id em memória.
     Aceita contexto do jogo selecionado para respostas contextualizadas.
     """
@@ -383,7 +383,7 @@ async def get_live_match_detail(event_id: str):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ROTAS Telegram — Bot Betina I.A.
+# ROTAS Telegram — Bot Elli AI
 # ══════════════════════════════════════════════════════════════════════════════
 
 

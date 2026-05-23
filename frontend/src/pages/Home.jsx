@@ -54,7 +54,7 @@ export default function Home() {
             whileTap={{ scale: 0.95 }}
             className="border-2 border-slate-600 bg-transparent text-white font-bold px-8 py-4 rounded-xl hover:bg-slate-800 transition-colors w-full sm:w-auto text-lg uppercase tracking-wide shadow-lg backdrop-blur-sm"
           >
-            💬 Falar com a Betina
+             💬 Falar com a Elli AI
           </motion.button>
         </motion.div>
       </div>

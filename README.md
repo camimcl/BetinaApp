@@ -1,6 +1,7 @@
-# 🏟️ Sports Analysis Assistant
+# 🏟️ IntelliBet — Análise Esportiva com IA
 
-Assistente de análise esportiva com XGBoost + SHAP + StatsBomb + API-Football.
+Plataforma de análise esportiva inteligente com XGBoost + SHAP + Gemini AI + API-Football.  
+Assistente virtual **Elli AI** integrada via chat e Telegram.
 
 ---
 

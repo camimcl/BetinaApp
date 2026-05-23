@@ -332,7 +332,7 @@ def _narrative_match(
             "Partida de leitura difícil — os primeiros minutos serão determinantes para confirmar a tendência.",
         ]))
 
-    radar_block = "💡 **Radar Betina**\n\n" + " ".join(radar_parts)
+    radar_block = "💡 **Radar Elli**\n\n" + " ".join(radar_parts)
 
     return f"{intro}\n\n{insight_block}\n\n{radar_block}"
 

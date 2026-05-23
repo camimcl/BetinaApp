@@ -3,6 +3,7 @@ src/api/gemini_client.py
 
 Cliente Gemini para narrativas dinâmicas e chat conversacional.
 Usa o novo SDK: google-genai (pip install google-genai)
+Modelo: gemini-2.5-flash (free tier)
 
 Funcionalidades:
   - generate_match_narrative(): analisa um jogo e gera texto rico variado
@@ -32,18 +33,18 @@ except ImportError:
 # ── Configuração ──────────────────────────────────────────────────────────────
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-# Modelo lite tem limites mais altos no free tier
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+# gemini-2.5-flash: modelo mais recente disponível no free tier
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 _client: Optional[object] = None
 
 
 # ── Rate Limiter Global ──────────────────────────────────────────────────────
-# Free tier: 15 req/min para flash, 30 req/min para flash-lite
-# Mantemos margem de segurança: max 8 req/min
+# Free tier gemini-2.5-flash: ~10 req/min
+# Mantemos margem de segurança: max 6 req/min
 
 _rate_limit_timestamps: list = []  # timestamps das últimas chamadas
-_MAX_REQUESTS_PER_MINUTE = 8
+_MAX_REQUESTS_PER_MINUTE = 6
 _cooldown_until: float = 0.0       # timestamp até quando pausar (após 429)
 
 
@@ -135,9 +136,43 @@ def is_available() -> bool:
     return GEMINI_AVAILABLE and bool(GEMINI_API_KEY)
 
 
+def _extract_text(response) -> str:
+    """
+    Extrai texto de uma resposta Gemini de forma robusta.
+    Modelos 'thinking' (ex: gemini-2.5-flash) podem retornar
+    response.text=None quando há thinking parts. Esta função
+    itera pelas parts e extrai apenas o texto real.
+    """
+    # Caminho rápido: response.text existe
+    try:
+        if response.text is not None:
+            return response.text.strip()
+    except (AttributeError, ValueError):
+        pass
+
+    # Caminho robusto: extrair de candidates[0].content.parts
+    try:
+        if response.candidates:
+            candidate = response.candidates[0]
+            if candidate.content and candidate.content.parts:
+                texts = []
+                for part in candidate.content.parts:
+                    # Ignora thinking parts (part.thought == True)
+                    if hasattr(part, 'thought') and part.thought:
+                        continue
+                    if part.text:
+                        texts.append(part.text)
+                if texts:
+                    return "\n".join(texts).strip()
+    except (AttributeError, IndexError):
+        pass
+
+    return ""
+
+
 # ── Prompt System ─────────────────────────────────────────────────────────────
 
-BETINA_SYSTEM_PROMPT = """Você é a Betina, uma analista esportiva de elite especializada em leitura tática de partidas de futebol — com domínio total de dados e estatísticas preditivas.
+BETINA_SYSTEM_PROMPT = """Você é a Elli, uma analista esportiva de elite especializada em leitura tática de partidas de futebol — com domínio total de dados e estatísticas preditivas.
 
 Seu estilo de comunicação:
 - Tom: autoridade analítica + envolvimento conversacional. Como um comentarista técnico experiente falando diretamente com o usuário.
@@ -246,9 +281,13 @@ Regras: porcentagens inteiras, sem jargão técnico, nomes em **negrito**.
                 system_instruction=BETINA_SYSTEM_PROMPT,
                 temperature=0.75,
                 max_output_tokens=400,
+                thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        text = response.text.strip()
+        text = _extract_text(response)
+        if not text:
+            logger.warning("Gemini retornou resposta vazia para narrativa")
+            return None
         _set_cached_narrative(ck, text)
         return text
     except Exception as e:
@@ -324,7 +363,7 @@ def generate_simulation_narrative(
     if client is None or not _can_call_api():
         direction = "aumenta" if pct_change > 0 else "reduz"
         base_msg = (
-            f"💡 **Radar Betina (Modo Local):**\n"
+            f"💡 **Radar Elli (Modo Local):**\n"
             f"Alterar fatores como **{changes_inline}** "
             f"tem impacto direto e **{direction}** a probabilidade de {target_desc} no lance em exatos **{abs(pct_change)}** pontos percentuais.\n"
         )
@@ -335,7 +374,7 @@ def generate_simulation_narrative(
         base_msg += f"\n(Dados gerados matematicamente, modelo de texto operando em contingência por alta demanda)."
         return base_msg
 
-    prompt = f"""Atue como Betina, analista de dados esportivos.
+    prompt = f"""Atue como Elli, analista de dados esportivos.
 Acabamos de rodar uma simulação hipotética "E SE".
 
 - Descrição do cenário escolhido pelo usuário: {description}
@@ -361,9 +400,11 @@ Sem asteriscos e adotando tom profissional de análise estatística. {"Destaque 
                 system_instruction=BETINA_SYSTEM_PROMPT,
                 temperature=0.7,
                 max_output_tokens=250,
+                thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        return response.text.replace("*", "").strip()
+        text = _extract_text(response)
+        return text.replace("*", "") if text else f"A probabilidade de {target_desc} mudou em {pct_change}% devido a essas alterações."
     except Exception as e:
         error_str = str(e)
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
@@ -421,9 +462,14 @@ def chat_with_betina(
                 system_instruction=BETINA_SYSTEM_PROMPT,
                 temperature=0.8,
                 max_output_tokens=350,
+                thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        reply = response.text.strip()
+        reply = _extract_text(response)
+        if not reply:
+            logger.warning(f"Gemini retornou vazio (session={session_id})")
+            _session_histories.pop(session_id, None)
+            return _fallback_chat_response(user_message, match_context)
 
         # Adiciona resposta do modelo ao histórico para multi-turn
         history.append(
@@ -496,7 +542,7 @@ def _fallback_chat_response(user_message: str, match_context: Optional[dict] = N
                 f"⚽ **{home}**: {hp}%\n"
                 f"⚖️ **Empate**: {dp}%\n"
                 f"⚽ **{away}**: {ap}%\n\n"
-                f"💡 **Radar Betina**: {dominant[1]} aparece como cenário favorito com {dominant[0]}% de probabilidade."
+                f"💡 **Radar Elli**: {dominant[1]} aparece como cenário favorito com {dominant[0]}% de probabilidade."
             )
 
     if any(w in lower for w in ["aposta", "odd", "valor", "bet"]):
@@ -510,7 +556,7 @@ def _fallback_chat_response(user_message: str, match_context: Optional[dict] = N
 
     if any(w in lower for w in ["oi", "olá", "ola", "tudo", "bem"]):
         return (
-            f"Olá! 👋 Sou a **Betina**, analista de partidas com IA.\n\n"
+            f"Olá! 👋 Sou a **Elli AI**, analista de partidas com IA.\n\n"
             f"{'Estou analisando ' + game_str + ' agora. Me pergunte o que quiser sobre a partida!' if home else 'Selecione um jogo ao vivo na barra lateral e vou te dar uma análise completa! ⚽'}"
         )
 
@@ -523,7 +569,7 @@ def _fallback_chat_response(user_message: str, match_context: Optional[dict] = N
 
 # ── Telegram — Prompt e Chat Específicos ──────────────────────────────────────
 
-BETINA_WHATSAPP_PROMPT = """Você é a Betina, assistente de apostas esportivas no Telegram. Seu OBJETIVO PRINCIPAL é engajar o usuário e levá-lo a acessar a plataforma de apostas.
+BETINA_WHATSAPP_PROMPT = """Você é a Elli, assistente de apostas esportivas no Telegram. Seu OBJETIVO PRINCIPAL é engajar o usuário e levá-lo a acessar a plataforma de apostas.
 
 Seu tom no Telegram:
 - DIRETO e PERSUASIVO — como uma amiga que manja muito de futebol e está empolgada com um jogo.
@@ -591,9 +637,14 @@ def chat_with_betina_whatsapp(
                 system_instruction=BETINA_WHATSAPP_PROMPT,
                 temperature=0.9,
                 max_output_tokens=300,
+                thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        reply = response.text.strip()
+        reply = _extract_text(response)
+        if not reply:
+            logger.warning(f"Gemini Telegram retornou vazio ({phone_number})")
+            _whatsapp_sessions.pop(phone_number, None)
+            return _fallback_whatsapp_response(user_message, match_context)
 
         history.append(
             genai_types.Content(role="model", parts=[genai_types.Part.from_text(text=reply)])
@@ -635,7 +686,7 @@ def _fallback_whatsapp_response(user_message: str, match_context: Optional[dict]
 
     if any(w in lower for w in ["oi", "olá", "ola", "hi", "start"]):
         return (
-            f"Fala! 👋 Sou a *Betina*, sua parceira de palpites esportivos!\n\n"
+            f"Fala! 👋 Sou a *Elli AI*, sua parceira de palpites esportivos!\n\n"
             f"🔥 Manda *jogo* e eu te mostro os jogos ao vivo com análise da I.A.\n"
             f"📊 Manda *palpite* pra receber dicas quentes!\n"
             f"🔔 Manda *alertas* pra receber notificações dos melhores jogos!\n\n"

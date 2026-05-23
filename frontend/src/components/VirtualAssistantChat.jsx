@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Zap, Info, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { predictMatch, predictShot, getLiveMatchDetail, chatBetina, simulateWhatIf } from "../services/api";
+import SimulatorCard from "./SimulatorCard";
 
 const BASE_MATCH = { home_score: 0, away_score: 0, minute: 60, home_xg: 1.0, away_xg: 0.8, xg_diff: 0.2, home_shots: 10, away_shots: 8, home_shots_ot: 4, away_shots_ot: 3, home_pass_acc: 0.8, away_pass_acc: 0.75, pressure_ratio: 1.1, home_passes: 300, away_passes: 280, home_pressures: 80, away_pressures: 90, home_fouls: 10, away_fouls: 10 };
 const BASE_SHOT = { distance_to_goal: 15, angle_to_goal: 30, xg: 0.1, under_pressure: 1, first_time: 0, open_goal: 0, minute: 60, score_diff: 0, is_home_team: 1, technique: "Normal", body_part: "Right Foot", shot_type: "Open Play", time_seconds: 3600, is_second_half: 1, is_extra_time: 0 };
@@ -22,7 +23,7 @@ const BASE_FOUL = { x: 70, y: 40, dist_to_center: 20, in_danger_zone: 0, in_fina
 const WELCOME_MSG = {
   id: "welcome",
   sender: "agent",
-  text: "Olá! Eu sou a **Betina**, sua assistente de análise esportiva. 🏟️\n\nSelecione um jogo ao vivo na barra lateral para eu analisar, ou me pergunte qualquer coisa sobre apostas esportivas!",
+  text: "Olá! Eu sou a **Elli AI**, sua assistente de análise esportiva. 🏟️\n\nSelecione um jogo ao vivo na barra lateral para eu analisar, ou me pergunte qualquer coisa sobre apostas esportivas!",
   type: "text",
 };
 
@@ -253,94 +254,34 @@ export default function VirtualAssistantChat({ selectedMatch }) {
   // ─── Lógica Interativa de Botões (E Se) ─────────────────────────────────
   function handleSimButton(opt) {
     if (opt.target === "shot_step_1" || opt.target === "foul_step_1" || opt.target === "match_step_1") {
-       const typeMap = {
-          "shot_step_1": "Chance de Gol",
-          "foul_step_1": "Falta/Cartão",
-          "match_step_1": "Mudança no Resultado"
-       };
-       const coreType = opt.target.split("_")[0]; // "shot", "foul", "match"
-
-       setMessages(prev => [...prev, { id: Date.now(), sender: "user", text: opt.label, type: "text" }, {
-          id: Date.now()+1, sender: "agent", text: `Para qual time ou viés você quer direcionar a simulação de ${typeMap[opt.target]}?`, type: "simulation_menu",
-          options: [
-             { label: selectedMatch?.home_team || "Mandante", target: `${coreType}_step_2`, isHomeRef: 1 },
-             { label: selectedMatch?.away_team || "Visitante", target: `${coreType}_step_2`, isHomeRef: 0 }
-          ]
-       }]);
-
-    } else if (opt.target && opt.target.endsWith("_step_2")) {
        const coreType = opt.target.split("_")[0];
-       const isHome = opt.isHomeRef; // 1 ou 0
-       
-       let nextMsg = "";
-       let nextOptions = [];
+       const typeNames = { shot: "Chute → Gol", foul: "Falta → Cartão", match: "Resultado" };
 
-       if (coreType === "shot") {
-          nextMsg = "Certo! De onde ocorreu o chute e com que dificuldade para este time?";
-          nextOptions = [
-             { label: "De Longe (>25m)", payload: { type: "shot", overrides: { distance_to_goal: 28, angle_to_goal: 20, xg: 0.05, is_home_team: isHome }, desc: "Chute de Longe" } },
-             { label: "Cara a Cara na pequena área", payload: { type: "shot", overrides: { distance_to_goal: 8, angle_to_goal: 55, xg: 0.5, open_goal: 1, is_home_team: isHome }, desc: "Cara a Cara (Gol livre)" } },
-             { label: "Chute lateral sem ângulo", payload: { type: "shot", overrides: { distance_to_goal: 15, angle_to_goal: 15, xg: 0.08, is_home_team: isHome }, desc: "Chute sem ângulo" } }
-          ];
-       } else if (coreType === "match") {
-          nextMsg = "Qual cenário do jogo você quer projetar a favor (ou contra) esta equipe?";
-          // Ajusta os valores da simulacao global pra quem ele apostou (isHome)
-          nextOptions = [
-             { label: "Maior Domínio Territorial e Controle", payload: { type: "match", overrides: isHome ? { home_xg: 3.5, home_shots: 25, pressure_ratio: 2.1, minute: 75 } : { away_xg: 3.5, away_shots: 25, pressure_ratio: 0.3, minute: 75 }, desc: "Ganho de volume e intensidade ofensiva" } },
-             { label: "Manter o Jogo Truncado e Controlado", payload: { type: "match", overrides: { xg_diff: 0.0, pressure_ratio: 1.0, home_shots: 5, away_shots: 5 }, desc: "Jogo estático e modorrento" } },
-             { label: "Sofrendo Pressão Constante", payload: { type: "match", overrides: isHome ? { away_xg: 2.0, pressure_ratio: 0.5, away_shots_ot: 6 } : { home_xg: 2.0, pressure_ratio: 1.5, home_shots_ot: 6 }, desc: "Equipe adversária tomando as rédeas da partida" } }
-          ];
-       } else if (coreType === "foul") {
-          nextMsg = "Onde jogador deste time estava ao cometer ou sofrer essa falta chave?";
-          nextOptions = [
-             { label: "Na intermediária do adversário (Ataque)", payload: { type: "foul", overrides: { x: 90, in_danger_zone: 0, in_final_third: 1, is_home_team: isHome }, desc: "Falta de ataque" } },
-             { label: "Defesa central (Último Homem parando gol)", payload: { type: "foul", overrides: { x: 20, y: 40, dist_to_center: 5, in_danger_zone: 1, is_home_team: isHome }, desc: "Derrubando atacante próximo a área" } },
-             { label: "Na Lateral sofrendo forte pressão", payload: { type: "foul", overrides: { x: 50, y: 5, under_pressure: 1, is_home_team: isHome }, desc: "Falta técnica nas beiradas" } }
-          ];
-       }
+       // Passo 1: Seleção de time
+       setMessages(prev => [...prev,
+         { id: Date.now(), sender: "user", text: opt.label, type: "text" },
+         { id: Date.now()+1, sender: "agent", text: `Para qual time você quer direcionar a simulação de **${typeNames[coreType]}**?`, type: "simulation_menu",
+           options: [
+             { label: selectedMatch?.home_team || "Mandante", target: `${coreType}_open_card`, isHomeRef: 1 },
+             { label: selectedMatch?.away_team || "Visitante", target: `${coreType}_open_card`, isHomeRef: 0 }
+           ]
+         }
+       ]);
 
-       setMessages(prev => [...prev, { id: Date.now(), sender: "user", text: Object.keys(opt).includes("isHomeRef") ? opt.label : "Opção Escolhida", type: "text" }, {
-          id: Date.now()+1, sender: "agent", text: nextMsg, type: "simulation_menu", options: nextOptions
-       }]);
+    } else if (opt.target && opt.target.endsWith("_open_card")) {
+       // Passo 2: Injeta o SimulatorCard visual diretamente no chat
+       const coreType = opt.target.split("_")[0];
+       const isHome = opt.isHomeRef;
 
-    } else if (opt.payload) {
-       // O usuário escolheu o cenário em step 3
-       setMessages(prev => [...prev, { id: Date.now(), sender: "user", text: opt.label, type: "text" }]);
-       runInteractiveSimulation(opt.payload);
+       setMessages(prev => [...prev,
+         { id: Date.now(), sender: "user", text: opt.label, type: "text" },
+         { id: Date.now()+1, sender: "agent", text: "", type: "simulator_card",
+           simType: coreType, isHome: isHome }
+       ]);
     }
   }
 
-  async function runInteractiveSimulation({ type, overrides, desc }) {
-    setIsTyping(true);
-    try {
-       const baseData = type === "match" ? BASE_MATCH : type === "shot" ? BASE_SHOT : BASE_FOUL;
-       let contextBase = { ...baseData };
-       // Injetamos features da base no E SE (baseadas no selectedMatch se for "match")
-       if (type === "match" && selectedMatch) {
-          contextBase.home_score = selectedMatch.home_score || 0;
-          contextBase.away_score = selectedMatch.away_score || 0;
-          contextBase.minute = selectedMatch.time ? parseInt(String(selectedMatch.time).replace("'", "")) || 60 : 60;
-          // As odds/analises basicas já estarão aqui no lastPrediction fallback
-       }
-
-       const simResp = await simulateWhatIf({
-          prediction_type: type,
-          base_data: contextBase,
-          overrides: overrides,
-          description: desc
-       });
-
-       setMessages(prev => [...prev, {
-          id: Date.now() + 1, sender: "agent",
-          text: `🔮 **Simulação Concluída** (${desc})\n\n${simResp.narrative}`,
-          type: "analysis"
-       }]);
-    } catch(err) {
-       setMessages(prev => [...prev, { id: Date.now()+1, sender: "agent", text: `Falha na simulação: ${err.message}`, type: "error" }]);
-    } finally {
-       setIsTyping(false);
-    }
-  }
+  // runInteractiveSimulation removido — agora o SimulatorCard faz tudo inline
 
   // ─── Renderização de Mensagem ──────────────────────────────────────────
   function renderMessage(msg) {
@@ -357,13 +298,22 @@ export default function VirtualAssistantChat({ selectedMatch }) {
       );
     }
 
+    // SimulatorCard renderizado em largura total (fora da bolha)
+    if (msg.type === "simulator_card") {
+      return (
+        <div className="w-full">
+          <SimulatorCard simType={msg.simType} isHome={msg.isHome} selectedMatch={selectedMatch} />
+        </div>
+      );
+    }
+
     return (
-      // Betina → esquerda (justify-start) | Usuário → direita (justify-end)
+      // Elli → esquerda (justify-start) | Usuário → direita (justify-end)
       <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
-        {/* Avatar da Betina */}
+        {/* Avatar da Elli AI */}
         {!isUser && (
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-yellow to-yellow-600 flex-shrink-0 flex items-center justify-center mr-2 mt-1 shadow-md">
-            <span className="text-slate-900 text-xs font-bold">B</span>
+            <span className="text-slate-900 text-xs font-bold">E</span>
           </div>
         )}
         <div
@@ -379,7 +329,7 @@ export default function VirtualAssistantChat({ selectedMatch }) {
         >
           {renderMarkdown(msg.text)}
 
-          {/* Menus Interativos de Botões Injetados pelo Agente */}
+          {/* Menus Interativos de Botões */}
           {msg.type === "simulation_menu" && msg.options && (
             <div className="mt-4 flex flex-col gap-2 border-t border-slate-600/50 pt-4">
               {msg.options.map((opt, i) => (
@@ -440,7 +390,7 @@ export default function VirtualAssistantChat({ selectedMatch }) {
             <Zap size={24} className="text-slate-900" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-base">Betina I.A.</h2>
+            <h2 className="text-white font-bold text-base">Elli AI</h2>
             <p className="text-green-400 text-xs flex items-center font-medium">
               <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
               {selectedMatch ? `Analisando • ${selectedMatch.home_team} vs ${selectedMatch.away_team}` : "Online"}
@@ -482,7 +432,7 @@ export default function VirtualAssistantChat({ selectedMatch }) {
           >
             <div className="bg-brand-yellow/20 text-brand-yellow px-4 py-3 rounded-2xl rounded-br-sm flex items-center gap-2 border border-brand-yellow/20">
               <Loader2 size={16} className="animate-spin" />
-              <span className="text-sm font-medium">Betina está analisando...</span>
+              <span className="text-sm font-medium">Elli está analisando...</span>
             </div>
           </motion.div>
         )}

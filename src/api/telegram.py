@@ -1,7 +1,7 @@
 """
 src/api/telegram.py
 
-Bot Telegram da Betina I.A. — assistente de apostas esportivas.
+Bot Telegram da Elli AI — assistente de apostas esportivas.
 
 Funcionalidades:
   - Conversa livre via Gemini (prompt persuasivo de vendas)
@@ -306,7 +306,7 @@ async def handle_incoming_message(text: str, chat_id: int) -> str:
             register_chat(chat_id)
             return (
                 "Opa! 👋 Vi que você veio da <b>plataforma</b> — seja bem-vindo!\n\n"
-                "Sou a <b>Betina</b>, sua analista de apostas com I.A. 🎯\n\n"
+                "Sou a <b>Elli AI</b>, sua analista de apostas com I.A. 🎯\n\n"
                 "🔔 Já ativei os <b>alertas</b> pra você! "
                 f"Vou te mandar até {MAX_DAILY_ALERTS} palpites quentes por dia.\n\n"
                 "Enquanto isso, o que quer fazer?\n\n"
@@ -322,7 +322,7 @@ async def handle_incoming_message(text: str, chat_id: int) -> str:
         state["last_action"] = "greeting"
         return (
             "Eai! 👋 Tudo bem?\n\n"
-            "Sou a <b>Betina</b>, sua parceira de palpites esportivos com I.A.! 🎯\n\n"
+            "Sou a <b>Elli AI</b>, sua parceira de palpites esportivos com I.A.! 🎯\n\n"
             "Tem vários jogos rolando agora... quer dar uma olhada?\n"
             "Manda /jogos que eu te mostro os melhores! ⚽🔥"
         )
@@ -602,7 +602,7 @@ async def _handle_free_chat(chat_id: int, text: str) -> str:
 def _format_welcome() -> str:
     """Mensagem de boas-vindas rica e conversacional."""
     return (
-        "Fala! 👋 Sou a <b>Betina</b>, sua analista de apostas esportivas!\n\n"
+        "Fala! 👋 Sou a <b>Elli AI</b>, sua analista de apostas esportivas!\n\n"
         "Eu uso inteligência artificial pra analisar jogos ao vivo e encontrar "
         "as melhores oportunidades de aposta pra você 🎯\n\n"
         "<b>O que eu posso fazer:</b>\n\n"
@@ -660,7 +660,7 @@ def _format_prediction_rich(prediction: dict, chat_id: int) -> str:
         emoji = "⚡"
         confianca = "JOGO EQUILIBRADO"
 
-    msg += f"{emoji} <b>PALPITE BETINA — {confianca}</b>\n"
+    msg += f"{emoji} <b>PALPITE ELLI — {confianca}</b>\n"
     msg += f"A I.A. aponta <b>{best_name}</b> com <b>{best_pct}%</b>!\n\n"
 
     # ── Barras de probabilidade ──
@@ -717,7 +717,7 @@ def format_proactive_tip(
     def _fair(p):
         return f"{100/p:.2f}" if p > 0 else "-"
 
-    msg = "🚨 <b>ALERTA BETINA!</b> 🚨\n\n"
+    msg = "🚨 <b>ALERTA ELLI!</b> 🚨\n\n"
     msg += f"⚽ <b>{home} {score} {away}</b>"
     if minute:
         msg += f" ({minute}')"
