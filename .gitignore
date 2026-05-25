@@ -157,10 +157,9 @@ log/
 *.tsv
 *.dat
 
-# Pastas de dados gerais (opcional)
-# Descomente se não quiser subir nada de data/ ou models/
-# data/
-# models/
+# Pastas de dados de treinamento (arquivos grandes — NÃO subir no GitHub)
+data/processed/
+data/raw/
 
 # Pastas relacionadas a bots / agentes
 .agents/

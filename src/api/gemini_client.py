@@ -360,19 +360,104 @@ def generate_simulation_narrative(
     changes_inline = " e ".join([c.split("(")[0].strip() for c in human_changes])
 
     client = _get_client()
+
+    # ── Fallback rico (sem Gemini) ────────────────────────────────────────────
+    def _rich_fallback() -> str:
+        import random
+        abs_pct = abs(pct_change)
+        positive = pct_change > 0
+        is_shot = prediction_type == "shot"
+        is_foul = prediction_type == "foul"
+        is_match = prediction_type == "match"
+
+        # Nível de impacto
+        if abs_pct >= 20:
+            impacto = "expressivo"
+            emoji_imp = "🔥"
+        elif abs_pct >= 10:
+            impacto = "significativo"
+            emoji_imp = "⚡"
+        elif abs_pct >= 5:
+            impacto = "moderado"
+            emoji_imp = "📊"
+        else:
+            impacto = "sutil"
+            emoji_imp = "💡"
+
+        # Frases de abertura por tipo
+        if is_shot:
+            if positive:
+                abertura_opts = [
+                    f"🎯 **Sua Análise Tática, na Lata!**\n\nCom a alteração em **{changes_inline}**, a simulação aponta um aumento {impacto} de **{abs_pct}%** na probabilidade de gol. Esse cenário coloca o atacante em vantagem clara sobre a defesa adversária.",
+                    f"🎯 **Cenário Favorável Detectado!**\n\nAjustar **{changes_inline}** eleva a chance de conversão em **{abs_pct}%**. Um impacto {impacto} que comprova como detalhes táticos transformam a qualidade de uma finalização.",
+                    f"⚽ **Análise do Chute**\n\nA simulação indica que modificar **{changes_inline}** melhora consideravelmente a eficiência do lance, com ganho de **{abs_pct}%** na probabilidade de gol. Posicionamento e pressão fazem toda a diferença.",
+                ]
+            else:
+                abertura_opts = [
+                    f"🛡️ **Cenário Defensivo**\n\nCom essas condições — **{changes_inline}** — a probabilidade de gol cai **{abs_pct}%**. A marcação intensa dificulta a conclusão e reduz consideravelmente o perigo da jogada.",
+                    f"📊 **Análise do Chute**\n\nAlterando **{changes_inline}**, a simulação aponta redução de **{abs_pct}%** na chance de gol. Esse cenário mostra como a pressão defensiva muda completamente o panorama da finalização.",
+                ]
+        elif is_foul:
+            if positive:
+                abertura_opts = [
+                    f"🟨 **Risco Elevado Identificado!**\n\nCom **{changes_inline}** nessas condições, a probabilidade de cartão sobe **{abs_pct}%**. A localização e a intensidade da falta são determinantes para a decisão arbitral.",
+                    f"⚠️ **Análise da Falta**\n\nA simulação indica que **{changes_inline}** eleva o risco de cartão em **{abs_pct}%**. Árbitros tendem a ser mais rigorosos em situações de alta pressão e proximidade da área.",
+                ]
+            else:
+                abertura_opts = [
+                    f"✅ **Risco Controlado**\n\nNessas condições — **{changes_inline}** — a probabilidade de cartão cai **{abs_pct}%**. A posição da falta e o contexto do lance reduzem a percepção de perigo para o árbitro.",
+                    f"🟩 **Análise da Falta**\n\nModificando **{changes_inline}**, o risco de punição diminui **{abs_pct}%**. Um ajuste {impacto} que mostra como o posicionamento influencia diretamente as decisões do árbitro.",
+                ]
+        else:  # match
+            if positive:
+                abertura_opts = [
+                    f"📈 **Cenário de Domínio**\n\nAjustar **{changes_inline}** projeta um aumento de **{abs_pct}%** nas chances de vitória. O volume e a qualidade das ações ofensivas são os grandes motores desse favoritismo.",
+                    f"🏆 **Projeção Tática**\n\nCom **{changes_inline}** nesse patamar, a simulação aponta ganho de **{abs_pct}%** na probabilidade de vitória. Um indicativo {impacto} de que esse cenário favorece claramente uma das equipes.",
+                ]
+            else:
+                abertura_opts = [
+                    f"📉 **Cenário Adverso**\n\nCom **{changes_inline}** nessas condições, a probabilidade de vitória cai **{abs_pct}%**. O adversário ganha vantagem territorial e de criação de oportunidades.",
+                    f"⚖️ **Projeção Tática**\n\nModificando **{changes_inline}**, a simulação registra queda de **{abs_pct}%** nas chances de vitória. Isso evidencia como a posse e o volume ofensivo definem o favorito da partida.",
+                ]
+
+        linha_abertura = random.choice(abertura_opts)
+
+        # Linha de impacto na vitória
+        linha_impacto = ""
+        if impact_pct_change is not None and is_shot or impact_pct_change is not None and is_foul:
+            abs_imp = abs(impact_pct_change)
+            if impact_pct_change > 0:
+                linha_impacto = (
+                    f"\n\n{emoji_imp} **Impacto na Vitória**\n\n"
+                    f"Se esse lance se concretizar em jogo, o time ganha um impulso de **{abs_imp}%** nas chances de sair com os três pontos. "
+                    + random.choice([
+                        "Um divisor de águas que pode redefinir o equilíbrio da partida.",
+                        "Exatamente o tipo de situação que muda o estado psicológico das duas equipes.",
+                        "Esse tipo de jogada transforma cenários incertos em vantagens concretas no placar.",
+                    ])
+                )
+            else:
+                linha_impacto = (
+                    f"\n\n📉 **Impacto na Vitória**\n\n"
+                    f"A concretização desse lance, nesse cenário, reduziria as chances de vitória do time em **{abs_imp}%**. "
+                    + random.choice([
+                        "Um sinal de alerta tático que não pode ser ignorado.",
+                        "Resultado que reforça a importância de criar situações mais favoráveis antes de finalizar.",
+                        "Isso demonstra como as condições do lance definem o impacto real no resultado final.",
+                    ])
+                )
+
+        # Reflexão final
+        reflexao_opts = [
+            f"\n\n💡 **Reflexão Estratégica**\n\nEssa simulação reforça como pequenos ajustes táticos geram consequências {impacto}s no resultado. A Elli AI continua monitorando os dados em tempo real para te dar as melhores análises.",
+            f"\n\n💡 **Leitura Tática**\n\nOs números confirmam: detalhes como **{changes_inline}** não são triviais — eles mudam completamente o panorama do lance e do jogo. Fique atento às próximas jogadas.",
+        ]
+        reflexao = random.choice(reflexao_opts)
+
+        return linha_abertura + linha_impacto + reflexao
+
     if client is None or not _can_call_api():
-        direction = "aumenta" if pct_change > 0 else "reduz"
-        base_msg = (
-            f"💡 **Radar Elli (Modo Local):**\n"
-            f"Alterar fatores como **{changes_inline}** "
-            f"tem impacto direto e **{direction}** a probabilidade de {target_desc} no lance em exatos **{abs(pct_change)}** pontos percentuais.\n"
-        )
-        if impact_pct_change is not None:
-            imp_dir = "potencializaria as chances de vitória da equipe em" if impact_pct_change > 0 else "reduziria as chances de vitória da equipe em"
-            base_msg += f"🔥 E caso este evento se concretize no jogo em andamento, ele {imp_dir} **{abs(impact_pct_change)}** pontos percentuais.\n"
-            
-        base_msg += f"\n(Dados gerados matematicamente, modelo de texto operando em contingência por alta demanda)."
-        return base_msg
+        return _rich_fallback()
 
     prompt = f"""Atue como Elli, analista de dados esportivos.
 Acabamos de rodar uma simulação hipotética "E SE".
@@ -404,13 +489,13 @@ Sem asteriscos e adotando tom profissional de análise estatística. {"Destaque 
             ),
         )
         text = _extract_text(response)
-        return text.replace("*", "") if text else f"A probabilidade de {target_desc} mudou em {pct_change}% devido a essas alterações."
+        return text.replace("*", "") if text else _rich_fallback()
     except Exception as e:
         error_str = str(e)
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
             _activate_cooldown(30)
         logger.error(f"Gemini generate_simulation_narrative falhou: {e}")
-        return f"A probabilidade de {target_desc} mudou em {pct_change}% devido a essas alterações estatísticas na partida."
+        return _rich_fallback()
 
 
 # ── Sessão de Chat Multi-Turn ─────────────────────────────────────────────────
