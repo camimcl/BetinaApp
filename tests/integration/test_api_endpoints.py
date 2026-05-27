@@ -22,8 +22,10 @@ Técnicas aplicadas:
 
 import json
 import numpy as np
+import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
+from sklearn.preprocessing import LabelEncoder
 from fastapi.testclient import TestClient
 
 # ─── Importa a aplicação FastAPI ─────────────────────────────────────────────
@@ -40,34 +42,58 @@ def _make_mock_model(proba_output):
 
 
 def _make_mock_explainer(n_features=10):
-    """Cria um mock do SHAP explainer."""
+    """Cria um mock do SHAP explainer.
+    Retorna array 2D (n_samples=1, n_features) como o SHAP real faz.
+    """
     mock = MagicMock()
-    mock.shap_values.return_value = np.zeros(n_features)
+    mock.shap_values.return_value = np.zeros((1, n_features))
     return mock
+
+
+def _make_label_encoder(classes: list) -> LabelEncoder:
+    """Cria um LabelEncoder real já fitado com as classes fornecidas."""
+    le = LabelEncoder()
+    le.fit(classes)
+    return le
+
+
+# ── LabelEncoders para colunas categóricas do shot model ─────────────────────
+SHOT_ENCODERS = {
+    "technique":  _make_label_encoder(["Normal", "Half Volley", "Volley", "Lob", "Overhead Kick", "Backheel"]),
+    "body_part":  _make_label_encoder(["Right Foot", "Left Foot", "Head"]),
+    "shot_type":  _make_label_encoder(["Open Play", "Free Kick", "Penalty", "Corner"]),
+}
+
+# ── LabelEncoders para colunas categóricas do foul model ─────────────────────
+FOUL_ENCODERS = {
+    "foul_type":  _make_label_encoder(["Regular", "Handball", "Dangerous Play", "Simulation"]),
+}
 
 
 # Artifact de modelo mockado — mesma estrutura que o predictor.py espera
 MOCK_GOAL_ARTIFACT = {
     "model":        _make_mock_model([0.85, 0.15]),       # [P(não gol), P(gol)]
-    "encoders":     {},
+    "encoders":     SHOT_ENCODERS,
     "feature_cols": ["distance_to_goal", "angle_to_goal", "xg",
+                     "technique", "body_part", "shot_type",
                      "under_pressure", "first_time", "open_goal",
                      "minute", "score_diff", "is_second_half",
                      "is_extra_time"],
     "cat_cols":     ["technique", "body_part", "shot_type"],
     "class_names":  ["no_goal", "goal"],
-    "explainer":    _make_mock_explainer(10),
+    "explainer":    _make_mock_explainer(13),
 }
 
 MOCK_CARD_ARTIFACT = {
     "model":        _make_mock_model([0.60, 0.40]),
-    "encoders":     {},
+    "encoders":     FOUL_ENCODERS,
     "feature_cols": ["x", "y", "dist_to_center", "in_danger_zone",
-                     "in_final_third", "minute", "under_pressure",
-                     "score_diff", "team_losing", "is_second_half"],
+                     "in_final_third", "foul_type", "minute",
+                     "under_pressure", "score_diff", "team_losing",
+                     "is_second_half"],
     "cat_cols":     ["foul_type"],
     "class_names":  ["no_card", "card"],
-    "explainer":    _make_mock_explainer(10),
+    "explainer":    _make_mock_explainer(11),
 }
 
 MOCK_MATCH_ARTIFACT = {
